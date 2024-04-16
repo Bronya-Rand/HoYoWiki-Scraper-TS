@@ -1,15 +1,31 @@
-# Extension-ReactTemplate
-Template repository for SillyTavern extensions using React and Webpack.
+# HoyoLAB Wiki Scraper
 
-## How to use
+HoyoLAB Wiki Scraper is a server plugin for SillyTavern that scrapes the HoyoLAB wiki and exports it as JSON documents.
 
-1. Click "Use this template" on the GitHub page.
-2. Create a new repository and clone it to your local machine.
-3. Open the repository in your code editor and run `npm install`.
-4. Edit the `manifest.json` file.
-5. Write the source code in `src` directory.
-6. When you're ready to test - run `npm run build`.
-7. Minimized bundle will appear in `dist`, ready to be plugged into SillyTavern.
+## How to install
 
-> [!TIP]
-> If you want to test your extension live, clone the repo into the `/public/scripts/extensions/third-party` of your SillyTavern installation.
+1. Before you begin, make sure you set a config `enableServerPlugins` to `true` in the config.yaml file of SillyTavern.
+
+2. Open a terminal in your SillyTavern directory, then run the following:
+
+```bash
+cd plugins
+git clone https://github.com/Bronya-Rand/HoYoWiki-Scraper-TS
+```
+
+<!-- 3. Restart the SillyTavern server. Then choose "Selenium Plugin" as a source in the Web Search extension UI. -->
+
+## How to build
+
+Clone the repository, then run `npm install`.
+
+```bash
+# Debug build
+npm run build:dev
+# Prod build
+npm run build
+```
+
+## License
+
+AGPLv3
