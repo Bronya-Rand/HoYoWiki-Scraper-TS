@@ -1,32 +1,47 @@
 const path = require('path');
 const TerserPlugin = require('terser-webpack-plugin');
+const webpack = require('webpack');
 
-module.exports = {
-    entry: path.join(__dirname, 'src/index.js'),
+const serverConfig = {
+    devtool: false,
+    target: 'node',
+    entry: './src/index.ts',
     output: {
-        path: path.join(__dirname, 'dist/'),
-        filename: `index.js`,
+        path: path.resolve(__dirname, 'dist'),
+        filename: 'plugin.js',
+        libraryTarget: 'commonjs',
+        libraryExport: 'default',
+    },
+    resolve: {
+        extensions: ['.ts', '.js'],
     },
     module: {
         rules: [
             {
-                test: /\.js/,
+                test: /\.ts$/,
+                use: 'ts-loader',
                 exclude: /node_modules/,
-                options: {
-                    cacheDirectory: true,
-                    presets: [
-                        '@babel/preset-env',
-                        ['@babel/preset-react', { runtime: 'automatic' }],
-                    ],
-                },
-                loader: 'babel-loader',
             },
         ],
     },
     optimization: {
-        minimize: true,
-        minimizer: [new TerserPlugin({
-            extractComments: false,
-        })],
+        minimizer: [
+            new TerserPlugin({
+                extractComments: false,
+                terserOptions: {
+                    format: {
+                        comments: false,
+                    },
+                },
+            }),
+        ],
     },
+    plugins: [
+        new webpack.IgnorePlugin({
+            resourceRegExp: /canvas/,
+            contextRegExp: /jsdom$/,
+        }),
+    ],
 };
+
+module.exports = [serverConfig];
