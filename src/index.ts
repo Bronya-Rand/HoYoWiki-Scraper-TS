@@ -177,13 +177,22 @@ interface HoYoLabTextCharacterJSON extends HoYoLabTextGenericJSON {
 
 // Functions
 function extractTextFromHTML(html: string): string {
-  const cleanHTML = DOMPurify.sanitize(html) as string;
+  const modifiedHtml = html.replace(/<\/?p>/g, " ");
+  const cleanHTML = DOMPurify.sanitize(modifiedHtml) as string;
   const dom = new JSDOM(cleanHTML);
   return dom.window.document.body.textContent || "";
 }
 
 function isValidHoYoWiki(request: HoYoLabPageRequest): boolean {
   return validWikis.includes(request.miHoYoWiki);
+}
+
+function createGenericJSON(
+  jsonData: HoYoLabRealGenericJSON
+): HoYoLabTextGenericJSON {
+  let temp = {} as HoYoLabTextGenericJSON;
+  temp.description = `${extractTextFromHTML(jsonData.desc)}`;
+  return temp;
 }
 
 function createCharacterJSON(
@@ -215,7 +224,7 @@ function createCharacterJSON(
           afterAscension.title = "- After Ascension";
 
           for (const combat of ascendData.list[lvl].combatList) {
-            if (combat.key == "") {
+            if (combat.key === "") {
               continue;
             }
             if (combat.key.endsWith("HP")) {
@@ -307,23 +316,60 @@ function createCharacterJSON(
 
 function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
   let fixedHoYoLabData = {} as HoYoLabTextFile;
+  var HoYoJSONData;
 
-  if (jsonData.data.page.menu_name == "Characters") {
-    console.log(
-      chalk.blue(
-        `[${MODULE_NAME}] Character JSON detected. Creating PlainText of Character JSON: ${jsonData.data.page.name}`
-      )
-    );
-    const HoYoJSONData = jsonData.data.page as HoYoLabRealCharacterJSON;
-    fixedHoYoLabData.name = HoYoJSONData.name;
-    fixedHoYoLabData.type = "Character";
-    fixedHoYoLabData.content = createCharacterJSON(HoYoJSONData);
+  switch (jsonData.data.page.menu_name) {
+    case "Characters":
+      console.log(
+        chalk.blue(
+          `[${MODULE_NAME}] Character JSON detected. Creating PlainText of Character JSON: ${jsonData.data.page.name}`
+        )
+      );
+      HoYoJSONData = jsonData.data.page as HoYoLabRealCharacterJSON;
+      fixedHoYoLabData.name = HoYoJSONData.name;
+      fixedHoYoLabData.type = "Character";
+      fixedHoYoLabData.content = createCharacterJSON(HoYoJSONData);
+      break;
+    case "Adventure":
+    case "Aeons":
+      HoYoJSONData = jsonData.data.page as HoYoLabRealGenericJSON;
+      fixedHoYoLabData.name = HoYoJSONData.name;
 
-    return fixedHoYoLabData;
-  } else {
-    // temporary for now
-    throw new Error("Unsupported JSON Data Type");
+      switch (jsonData.data.page.menu_name) {
+        case "Adventure":
+          console.log(
+            chalk.blue(
+              `[${MODULE_NAME}] Adventure JSON detected. Creating PlainText of Adventure JSON: ${jsonData.data.page.name}`
+            )
+          );
+          fixedHoYoLabData.type = "Adventure";
+          break;
+        case "Aeons":
+          console.log(
+            chalk.blue(
+              `[${MODULE_NAME}] Aeons JSON detected. Creating PlainText of Aeons JSON: ${jsonData.data.page.name}`
+            )
+          );
+          fixedHoYoLabData.type = "Aeons";
+          break;
+        default:
+          throw new Error("Failed to assign correct type.");
+      }
+      fixedHoYoLabData.content = createGenericJSON(HoYoJSONData);
+      break;
+    default:
+      console.log(
+        chalk.blue(
+          `[${MODULE_NAME}] Non-Specific JSON detected. Attempting to creating PlainText of given JSON: ${jsonData.data.page.name}`
+        )
+      );
+      HoYoJSONData = jsonData.data.page as HoYoLabRealGenericJSON;
+      fixedHoYoLabData.name = HoYoJSONData.name;
+      fixedHoYoLabData.type = HoYoJSONData.menu_name;
+      fixedHoYoLabData.content = createGenericJSON(HoYoJSONData);
+      break;
   }
+  return fixedHoYoLabData;
 }
 
 async function scrapeHoYoLabWiki(
