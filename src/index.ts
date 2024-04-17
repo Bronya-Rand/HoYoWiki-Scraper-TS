@@ -30,42 +30,85 @@ interface Plugin {
 }
 
 interface HoYoLabPageRequest {
-  wiki: string;
-  wikiId: number;
+  miHoYoWiki: string;
+  miHoYoWikiID: number;
 }
 
 interface HoYoLabAPIJSON {
   retcode: number;
   message: string;
-  data: { page: HoYoLabRealJSON };
+  data: {
+    page: {
+      name: string;
+      menu_name: string;
+    };
+  };
 }
 
-interface HoYoLabRealJSON {
+interface HoYoLabRealGenericJSON {
   id: number;
   name: string;
   desc: string;
-  icon_url: string;
-  header_img_url: string;
-  modules: HoYoLabModule[];
-  filter_values: HoYoLabFilterValue;
-  menu_id: number;
+  modules: [HoYoLabModule];
   menu_name: string;
-  version: number;
-  langs: string[];
-  template_layout: string | null;
-  edit_lock_status: string;
-  correct_lock_status: string;
-  menus: string[];
-  template_id: string;
-  ext: HoYoLabExtDict[];
-  alias_name: string;
-  lang: string;
-  beta: boolean;
+  filter_values: {};
+}
+
+interface HoYoLabRealCharacterJSON extends HoYoLabRealGenericJSON {
+  filter_values: {
+    character_paths: { values: [string] };
+    character_factions: { values: [string] };
+    character_rarity: { values: [string] };
+    character_combat_type: { values: [string] };
+  };
 }
 
 // Handles that nested JSON data that HoYoLAB uses for some reason.
-interface HoYoLABNestedJSON {
-  list: [{ key: string; value: [string]; id: string }];
+interface HoYoLabAscendNestedJSON {
+  list: [
+    {
+      key: string;
+      combatList: [{ key: string; values: string[] }];
+      materials: [string];
+      id: string;
+    }
+  ];
+}
+
+interface HoyoLabEidolonsNestedJSON {
+  list: [
+    {
+      name: string;
+      icon_url: string;
+      desc: string;
+      id: string;
+    }
+  ];
+}
+
+interface HoyoLabStoryNestedJSON {
+  list: [
+    {
+      title: string;
+      desc: string;
+    }
+  ];
+}
+
+interface HoyoLabVONestedJSON {
+  list: [
+    {
+      title: string;
+      img: string;
+      desc: string;
+      artifactPos: string;
+      id: string;
+      audios: [{ id: string; name: string; url: string }];
+      name: string;
+      order: number;
+      sortId: string;
+    }
+  ];
 }
 
 interface HoYoLabComponent {
@@ -77,50 +120,59 @@ interface HoYoLabComponent {
 
 interface HoYoLabModule {
   name: string;
-  is_poped: boolean;
-  components: HoYoLabComponent[];
-  id: string;
-  is_customize_name: boolean;
-  is_abstract: boolean;
-  is_show_switch: boolean;
-  switch: boolean;
-  desc: string;
-  repeated: boolean;
-  is_submodule: boolean;
-  origin_module_id: string;
-}
-
-interface HoYoLabCharacterValues {
-  values: string[];
-  value_types: { id: string; value: HoYoLABNestedJSON }[];
-}
-
-interface HoYoLabFilterValue {
-  character_paths: HoYoLabCharacterValues[];
-  character_factions: HoYoLabCharacterValues[];
-  character_rarity: HoYoLabCharacterValues[];
-  character_combat_type: HoYoLabCharacterValues[];
-}
-
-interface HoYoLabExtDict {
-  fe_ext: string;
-  post_ext: string | null;
+  components: [HoYoLabComponent];
 }
 
 // Text File Interfaces
-interface HoYoLabTextFile {
+interface HoYoLabAscendStats {
   title: string;
-  content: string;
+  hp: string;
+  atk: string;
+  def: string;
+  spd: string;
 }
 
-interface HoYoLabTextJSONContents {
+// We leaving out materials because it is a bunch of complicated things for now.
+interface HoYoLabTextAscensions {
+  level: string;
+  beforeAscension: HoYoLabAscendStats;
+  afterAscension: HoYoLabAscendStats;
+}
+
+interface HoYoLabTextEidolons {
+  name: string;
+  desc: string;
+}
+
+interface HoYoLabTextStory {
+  title: string;
+  desc: string;
+}
+
+interface HoYoLabTextFile {
   type: string;
+  name: string;
+  content: HoYoLabTextCharacterJSON | HoYoLabTextGenericJSON;
+}
+
+interface HoYoLabTextGenericJSON {
   description: string;
-  modules: { module: string; moduleData: HoYoLABNestedJSON }[];
+  faction?: string;
+  path?: string;
+  story?: HoYoLabTextStory[];
+  extra_info?: {};
+}
+
+interface HoYoLabTextCharacterJSON extends HoYoLabTextGenericJSON {
+  description: string;
   path: string;
   faction: string;
   rarity: string;
-  combatType: string;
+  combat_type: string;
+  ascension_levels: HoYoLabTextAscensions[];
+  eidolons: HoYoLabTextEidolons[];
+  story: HoYoLabTextStory[];
+  voice_overs: HoYoLabTextStory[]; // Same code as stories.
 }
 
 // Functions
@@ -131,52 +183,153 @@ function extractTextFromHTML(html: string): string {
 }
 
 function isValidHoYoWiki(request: HoYoLabPageRequest): boolean {
-  return validWikis.includes(request.wiki);
+  return validWikis.includes(request.miHoYoWiki);
 }
 
-function HoYoAPItoPlainText(jsonData: HoYoLabRealJSON): HoYoLabTextFile {
-  const secondaryJSONInModuleList: {
-    module: string;
-    moduleData: HoYoLABNestedJSON;
-  }[] = [];
+function createCharacterJSON(
+  jsonData: HoYoLabRealCharacterJSON
+): HoYoLabTextCharacterJSON | HoYoLabTextGenericJSON {
+  let temp = {} as HoYoLabTextCharacterJSON;
+
+  temp.description = `${extractTextFromHTML(jsonData.desc)}`;
+  temp.path = `${jsonData.filter_values.character_paths.values[0]}` || "";
+  temp.faction = `${jsonData.filter_values.character_factions.values[0]}` || "";
+  temp.rarity = `${jsonData.filter_values.character_rarity.values[0]}` || "";
+  temp.combat_type =
+    `${jsonData.filter_values.character_combat_type.values[0]}` || "";
+
   for (const module of jsonData.modules) {
-    const moduleData = JSON.parse(
-      module.components[0].data
-    ) as HoYoLABNestedJSON;
-    for (const moduleDataEntry of moduleData.list) {
-      moduleDataEntry.value[0] = extractTextFromHTML(moduleDataEntry.value[0]);
+    switch (module.name) {
+      case "Ascend":
+        const ascendData = JSON.parse(
+          module.components[0].data
+        ) as HoYoLabAscendNestedJSON;
+        let ascensions = [] as HoYoLabTextAscensions[];
+
+        for (const lvl in ascendData.list) {
+          let ascension = {} as HoYoLabTextAscensions;
+          let beforeAscension = {} as HoYoLabAscendStats;
+          let afterAscension = {} as HoYoLabAscendStats;
+
+          beforeAscension.title = "- Before Ascension";
+          afterAscension.title = "- After Ascension";
+
+          for (const combat of ascendData.list[lvl].combatList) {
+            if (combat.key == "") {
+              continue;
+            }
+            if (combat.key.endsWith("HP")) {
+              beforeAscension.hp = combat.values[0];
+              afterAscension.hp = combat.values[1];
+            } else if (combat.key.endsWith("ATK")) {
+              beforeAscension.atk = combat.values[0];
+              afterAscension.atk = combat.values[1];
+            } else if (combat.key.endsWith("DEF")) {
+              beforeAscension.def = combat.values[0];
+              afterAscension.def = combat.values[1];
+            } else if (combat.key.endsWith("SPD")) {
+              beforeAscension.spd = combat.values[0];
+              afterAscension.spd = combat.values[1];
+            }
+          }
+
+          ascension.level = ascendData.list[lvl].key;
+          ascension.beforeAscension = beforeAscension;
+          ascension.afterAscension = afterAscension;
+
+          ascensions.push(ascension);
+        }
+
+        temp.ascension_levels = ascensions;
+        break;
+      case "Eidolons":
+        const eidolonData = JSON.parse(
+          module.components[0].data
+        ) as HoyoLabEidolonsNestedJSON;
+        let eidolons = [] as HoYoLabTextEidolons[];
+
+        for (const eidolon of eidolonData.list) {
+          let tempEidolon = {} as HoYoLabTextEidolons;
+
+          tempEidolon.name = eidolon.name;
+          tempEidolon.desc = extractTextFromHTML(eidolon.desc);
+
+          eidolons.push(tempEidolon);
+        }
+
+        temp.eidolons = eidolons;
+        break;
+      case "Story":
+        const storyData = JSON.parse(
+          module.components[0].data
+        ) as HoyoLabStoryNestedJSON;
+        let stories = [] as HoYoLabTextStory[];
+
+        for (const story of storyData.list) {
+          let tempStory = {} as HoYoLabTextStory;
+
+          tempStory.title = story.title;
+          tempStory.desc = extractTextFromHTML(story.desc);
+
+          stories.push(tempStory);
+        }
+
+        temp.story = stories;
+        break;
+      case "Voice-Over":
+        const voiceData = JSON.parse(
+          module.components[0].data
+        ) as HoyoLabVONestedJSON;
+        let voiceOvers = [] as HoYoLabTextStory[];
+
+        for (const voice of voiceData.list) {
+          let tempVoice = {} as HoYoLabTextStory;
+
+          tempVoice.title = voice.name;
+          tempVoice.desc = extractTextFromHTML(voice.desc);
+
+          voiceOvers.push(tempVoice);
+        }
+
+        temp.voice_overs = voiceOvers;
+        break;
+      default:
+        console.log(
+          chalk.yellow(
+            `[${MODULE_NAME}] Module: ${module.name} is not supported for now`
+          )
+        );
+        continue;
     }
-    secondaryJSONInModuleList.push({ module: module.name, moduleData });
   }
+  return temp;
+}
 
-  const fixedHoYoLabData = {} as HoYoLabTextFile;
-  const textJSONData = {} as HoYoLabTextJSONContents;
+function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
+  let fixedHoYoLabData = {} as HoYoLabTextFile;
 
-  fixedHoYoLabData.title = `Name: ${jsonData.name}`;
-  textJSONData.type = `Type: ${jsonData.menu_name}`;
-  textJSONData.description = `Description: ${jsonData.desc}`;
-  textJSONData.path = `Path: Path of ${jsonData.filter_values.character_paths[0].values[0]}`;
-  textJSONData.faction = `Faction: ${jsonData.filter_values.character_factions[0].values[0]}`;
-  textJSONData.rarity = `Rarity: ${jsonData.filter_values.character_rarity[0].values[0]}`;
-  textJSONData.combatType = `Combat Type: ${jsonData.filter_values.character_combat_type[0].values[0]}`;
+  if (jsonData.data.page.menu_name == "Characters") {
+    console.log(
+      chalk.blue(
+        `[${MODULE_NAME}] Character JSON detected. Creating PlainText of Character JSON: ${jsonData.data.page.name}`
+      )
+    );
+    const HoYoJSONData = jsonData.data.page as HoYoLabRealCharacterJSON;
+    fixedHoYoLabData.name = HoYoJSONData.name;
+    fixedHoYoLabData.type = "Character";
+    fixedHoYoLabData.content = createCharacterJSON(HoYoJSONData);
 
-  for (const module of secondaryJSONInModuleList) {
-    const moduleObject = {
-      module: module.module,
-      moduleData: module.moduleData,
-    };
-    textJSONData.modules.push(moduleObject);
+    return fixedHoYoLabData;
+  } else {
+    // temporary for now
+    throw new Error("Unsupported JSON Data Type");
   }
-
-  fixedHoYoLabData.content = JSON.stringify(textJSONData, null, 4);
-
-  return fixedHoYoLabData;
 }
 
 async function scrapeHoYoLabWiki(
   url: string,
   wiki: string
-): Promise<[HoYoLabTextFile]> {
+): Promise<HoYoLabTextFile[]> {
   const headers = {
     "User-Agent": USER_AGENT,
     "Accept-Language": "en-US,en;q=0.6",
@@ -185,7 +338,7 @@ async function scrapeHoYoLabWiki(
   };
 
   console.log(
-    chalk.green(`[${MODULE_NAME}] Fetching the HoYoLAB Wiki Page from the API`)
+    chalk.blue(`[${MODULE_NAME}] Fetching the HoYoLAB Wiki Page from the API`)
   );
   const response = await fetch(url, { headers });
 
@@ -194,12 +347,18 @@ async function scrapeHoYoLabWiki(
       `Failed to fetch the HoYoLAB Wiki page: ${response.statusText}`
     );
   }
+  console.log(
+    chalk.green(`[${MODULE_NAME}] Received response from the HoYoLAB Wiki API.`)
+  );
 
   const responseJSON = (await response.json()) as HoYoLabAPIJSON;
-  // Because HoYo nests data for some reason, we need to get the actual JSON data.
-  const realJSONData = responseJSON.data.page;
 
-  const plainTextData = HoYoAPItoPlainText(realJSONData);
+  console.log(
+    chalk.blue(
+      `[${MODULE_NAME}] Converting the HoYoLAB Wiki for JSON Entry: '${responseJSON.data.page.name}' to Plain Text`
+    )
+  );
+  const plainTextData = HoYoAPItoPlainText(responseJSON);
 
   return [plainTextData];
 }
@@ -216,6 +375,12 @@ export async function init(router: Router): Promise<void> {
     try {
       const request: HoYoLabPageRequest = req.body;
 
+      console.log(
+        chalk.magenta(
+          `[${MODULE_NAME}] Received a HoYoLAB Wiki Request for '${request.miHoYoWiki}' wiki with ID: '${request.miHoYoWikiID}'`
+        )
+      );
+
       if (!isValidHoYoWiki(request)) {
         console.error(
           chalk.red(`[${MODULE_NAME}] Scrape Failed! Invalid Wiki Request!`)
@@ -223,19 +388,22 @@ export async function init(router: Router): Promise<void> {
         return res.status(400).json({ error: "Invalid Wiki Request" });
       }
 
-      const wikiName = "Genshin" ? request.wiki : "Honkai: Star Rail";
+      const wikiName = "Genshin" ? request.miHoYoWiki : "Honkai: Star Rail";
       console.log(
-        chalk.green(
-          `[${MODULE_NAME}] Scraping the HoYoLAB ${wikiName} Wiki for Wiki ID: ${request.wikiId}`
+        chalk.blue(
+          `[${MODULE_NAME}] Scraping the HoYoLAB ${wikiName} Wiki for Wiki ID: ${request.miHoYoWikiID}`
         )
       );
 
-      const fullHoYoLabURL = `${HOYOLAB_URL}${request.wiki}/wapi/entry_page?entry_page_id=${request.wikiId}`;
+      const fullHoYoLabURL = `${HOYOLAB_URL}/${request.miHoYoWiki}/wapi/entry_page?entry_page_id=${request.miHoYoWikiID}`;
 
-      const response = await scrapeHoYoLabWiki(fullHoYoLabURL, request.wiki);
+      const response = await scrapeHoYoLabWiki(
+        fullHoYoLabURL,
+        request.miHoYoWiki
+      );
       console.log(
         chalk.green(
-          `[${MODULE_NAME}] Scrape Successful for Wiki ID: ${request.wikiId} in the ${wikiName} Wiki`
+          `[${MODULE_NAME}] Scrape Successful for Wiki ID: ${request.miHoYoWikiID} in the ${wikiName} Wiki`
         )
       );
 
@@ -255,7 +423,7 @@ export async function init(router: Router): Promise<void> {
 
 export async function exit(): Promise<void> {
   console.log(
-    chalk.green(`[${MODULE_NAME}] Exiting the HoYoWiki Scraper Plugin`)
+    chalk.yellow(`[${MODULE_NAME}] Exiting the HoYoWiki Scraper Plugin`)
   );
 }
 
