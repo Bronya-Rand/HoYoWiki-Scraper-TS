@@ -68,54 +68,6 @@ interface HoYoLabGenericNestedJSON {
   data?: string;
 }
 
-// Handles that nested JSON data that HoYoLAB uses for some reason.
-interface HoYoLabAscendNestedJSON {
-  list: [
-    {
-      key: string;
-      combatList: [{ key: string; values: string[] }];
-      materials: [string];
-      id: string;
-    }
-  ];
-}
-
-interface HoyoLabEidolonsNestedJSON {
-  list: [
-    {
-      name: string;
-      icon_url: string;
-      desc: string;
-      id: string;
-    }
-  ];
-}
-
-interface HoyoLabStoryNestedJSON {
-  list: [
-    {
-      title: string;
-      desc: string;
-    }
-  ];
-}
-
-interface HoyoLabVONestedJSON {
-  list: [
-    {
-      title: string;
-      img: string;
-      desc: string;
-      artifactPos: string;
-      id: string;
-      audios: [{ id: string; name: string; url: string }];
-      name: string;
-      order: number;
-      sortId: string;
-    }
-  ];
-}
-
 interface HoYoLabComponent {
   component_id: string;
   layout: string;
@@ -128,32 +80,6 @@ interface HoYoLabModule {
   components: [HoYoLabComponent];
 }
 
-// Text File Interfaces
-interface HoYoLabAscendStats {
-  title: string;
-  hp: string;
-  atk: string;
-  def: string;
-  spd: string;
-}
-
-// We leaving out materials because it is a bunch of complicated things for now.
-interface HoYoLabTextAscensions {
-  level: string;
-  beforeAscension: HoYoLabAscendStats;
-  afterAscension: HoYoLabAscendStats;
-}
-
-interface HoYoLabTextEidolons {
-  name: string;
-  desc: string;
-}
-
-interface HoYoLabTextStory {
-  title: string;
-  desc: string;
-}
-
 interface HoYoLabTextFile {
   type: string;
   name: string;
@@ -162,23 +88,10 @@ interface HoYoLabTextFile {
 
 interface HoYoLabTextGenericJSON {
   description: string;
-  faction?: string;
-  path?: string;
-  story?: HoYoLabTextStory[];
   modules?: any[];
 }
 
-interface HoYoLabTextCharacterJSON extends HoYoLabTextGenericJSON {
-  description: string;
-  path: string;
-  faction: string;
-  rarity: string;
-  combat_type: string;
-  ascension_levels: HoYoLabTextAscensions[];
-  eidolons: HoYoLabTextEidolons[];
-  story: HoYoLabTextStory[];
-  voice_overs: HoYoLabTextStory[]; // Same code as stories.
-}
+interface HoYoLabTextCharacterJSON extends HoYoLabTextGenericJSON {}
 
 // Functions
 function extractTextFromHTML(html: string | string[]): string {
@@ -248,6 +161,14 @@ function createAeonsJSON(jsonData: HoYoLabRealGenericJSON) {
           modulo.data.push({
             key: data.key,
             value: extractTextFromHTML(data.value),
+          });
+        } else if (
+          data.hasOwnProperty("title") &&
+          data.hasOwnProperty("desc")
+        ) {
+          modulo.data.push({
+            key: data.title,
+            value: extractTextFromHTML(data.desc),
           });
         } else {
           console.log(
@@ -374,125 +295,6 @@ function newCreateCharacterJSON(jsonData: HoYoLabRealCharacterJSON) {
   return temp;
 }
 
-function createCharacterJSON(
-  jsonData: HoYoLabRealCharacterJSON
-): HoYoLabTextCharacterJSON | HoYoLabTextGenericJSON {
-  let temp = {} as HoYoLabTextCharacterJSON;
-
-  temp.description = `${extractTextFromHTML(jsonData.desc)}`;
-  temp.path = `${jsonData.filter_values.character_paths.values[0]}` || "";
-  temp.faction = `${jsonData.filter_values.character_factions.values[0]}` || "";
-  temp.rarity = `${jsonData.filter_values.character_rarity.values[0]}` || "";
-  temp.combat_type =
-    `${jsonData.filter_values.character_combat_type.values[0]}` || "";
-
-  for (const module of jsonData.modules) {
-    switch (module.name) {
-      case "Ascend":
-        const ascendData = JSON.parse(
-          module.components[0].data
-        ) as HoYoLabAscendNestedJSON;
-        let ascensions = [] as HoYoLabTextAscensions[];
-
-        for (const lvl in ascendData.list) {
-          let ascension = {} as HoYoLabTextAscensions;
-          let beforeAscension = {} as HoYoLabAscendStats;
-          let afterAscension = {} as HoYoLabAscendStats;
-
-          beforeAscension.title = "- Before Ascension";
-          afterAscension.title = "- After Ascension";
-
-          for (const combat of ascendData.list[lvl].combatList) {
-            if (combat.key === "") {
-              continue;
-            }
-            if (combat.key.endsWith("HP")) {
-              beforeAscension.hp = combat.values[0];
-              afterAscension.hp = combat.values[1];
-            } else if (combat.key.endsWith("ATK")) {
-              beforeAscension.atk = combat.values[0];
-              afterAscension.atk = combat.values[1];
-            } else if (combat.key.endsWith("DEF")) {
-              beforeAscension.def = combat.values[0];
-              afterAscension.def = combat.values[1];
-            } else if (combat.key.endsWith("SPD")) {
-              beforeAscension.spd = combat.values[0];
-              afterAscension.spd = combat.values[1];
-            }
-          }
-
-          ascension.level = ascendData.list[lvl].key;
-          ascension.beforeAscension = beforeAscension;
-          ascension.afterAscension = afterAscension;
-
-          ascensions.push(ascension);
-        }
-
-        temp.ascension_levels = ascensions;
-        break;
-      case "Eidolons":
-        const eidolonData = JSON.parse(
-          module.components[0].data
-        ) as HoyoLabEidolonsNestedJSON;
-        let eidolons = [] as HoYoLabTextEidolons[];
-
-        for (const eidolon of eidolonData.list) {
-          let tempEidolon = {} as HoYoLabTextEidolons;
-
-          tempEidolon.name = eidolon.name;
-          tempEidolon.desc = extractTextFromHTML(eidolon.desc) as string;
-
-          eidolons.push(tempEidolon);
-        }
-
-        temp.eidolons = eidolons;
-        break;
-      case "Story":
-        const storyData = JSON.parse(
-          module.components[0].data
-        ) as HoyoLabStoryNestedJSON;
-        let stories = [] as HoYoLabTextStory[];
-
-        for (const story of storyData.list) {
-          let tempStory = {} as HoYoLabTextStory;
-
-          tempStory.title = story.title;
-          tempStory.desc = extractTextFromHTML(story.desc) as string;
-
-          stories.push(tempStory);
-        }
-
-        temp.story = stories;
-        break;
-      case "Voice-Over":
-        const voiceData = JSON.parse(
-          module.components[0].data
-        ) as HoyoLabVONestedJSON;
-        let voiceOvers = [] as HoYoLabTextStory[];
-
-        for (const voice of voiceData.list) {
-          let tempVoice = {} as HoYoLabTextStory;
-
-          tempVoice.title = voice.name;
-          tempVoice.desc = extractTextFromHTML(voice.desc) as string;
-
-          voiceOvers.push(tempVoice);
-        }
-
-        temp.voice_overs = voiceOvers;
-        break;
-      default:
-        console.log(
-          chalk.yellow(
-            `[${MODULE_NAME}] Module: ${module.name} is not supported for now`
-          )
-        );
-        continue;
-    }
-  }
-  return temp;
-}
-
 function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
   let fixedHoYoLabData = {} as HoYoLabTextFile;
   var HoYoJSONData;
@@ -511,6 +313,26 @@ function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
       break;
     case "Adventure":
     case "Aeons":
+    case "Blessings":
+    case "Curios":
+    case "Enemies":
+    case "Factions":
+    case "Forgotten Hall":
+    case "Inventory Items":
+    case "Light Cones":
+    case "Map Collections":
+    case "NPCs":
+    case "Path":
+    case "Permanent Events":
+    case "Phonograph":
+    case "Pure Fiction":
+    case "Readables":
+    case "Regular Challenges":
+    case "Relics":
+    case "Simulated Universe":
+    case "System":
+    case "Terms":
+    case "Time-Limited Events":
       HoYoJSONData = jsonData.data.page as HoYoLabRealGenericJSON;
       fixedHoYoLabData.name = HoYoJSONData.name;
 
@@ -525,12 +347,98 @@ function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
           fixedHoYoLabData.content = createGenericJSON(HoYoJSONData);
           break;
         case "Aeons":
+        case "Blessings":
+        case "Curios":
+        case "Enemies":
+        case "Factions":
+        case "Forgotten Hall":
+        case "Inventory Items":
+        case "Light Cones":
+        case "Map Collections":
+        case "NPCs":
+        case "Path":
+        case "Permanent Events":
+        case "Phonograph":
+        case "Pure Fiction":
+        case "Readables":
+        case "Regular Challenges":
+        case "Relics":
+        case "Simulated Universe":
+        case "System":
+        case "Terms":
+        case "Time-Limited Events":
           console.log(
             chalk.blue(
-              `[${MODULE_NAME}] Aeons JSON detected. Creating PlainText of Aeons JSON: ${jsonData.data.page.name}`
+              `[${MODULE_NAME}] Standard JSON detected. Creating PlainText of Standard JSON: ${jsonData.data.page.name}`
             )
           );
-          fixedHoYoLabData.type = "Aeons";
+          switch (jsonData.data.page.menu_name) {
+            case "Aeons":
+              fixedHoYoLabData.type = "Aeons";
+              break;
+            case "Blessings":
+              fixedHoYoLabData.type = "Blessings";
+              break;
+            case "Curios":
+              fixedHoYoLabData.type = "Curios";
+              break;
+            case "Enemies":
+              fixedHoYoLabData.type = "Enemies";
+              break;
+            case "Factions":
+              fixedHoYoLabData.type = "Factions";
+              break;
+            case "Forgotten Hall":
+              fixedHoYoLabData.type = "Forgotten Hall";
+              break;
+            case "Inventory Items":
+              fixedHoYoLabData.type = "Inventory Items";
+              break;
+            case "Light Cones":
+              fixedHoYoLabData.type = "Light Cones";
+              break;
+            case "Map Collections":
+              fixedHoYoLabData.type = "Map Collections";
+              break;
+            case "NPCs":
+              fixedHoYoLabData.type = "NPCs";
+              break;
+            case "Path":
+              fixedHoYoLabData.type = "Path";
+              break;
+            case "Permanent Events":
+              fixedHoYoLabData.type = "Permanent Events";
+              break;
+            case "Phonograph":
+              fixedHoYoLabData.type = "Phonograph";
+              break;
+            case "Pure Fiction":
+              fixedHoYoLabData.type = "Pure Fiction";
+              break;
+            case "Readables":
+              fixedHoYoLabData.type = "Readables";
+              break;
+            case "Regular Challenges":
+              fixedHoYoLabData.type = "Regular Challenges";
+              break;
+            case "Relics":
+              fixedHoYoLabData.type = "Relics";
+              break;
+            case "Simulated Universe":
+              fixedHoYoLabData.type = "Simulated Universe";
+              break;
+            case "System":
+              fixedHoYoLabData.type = "System";
+              break;
+            case "Terms":
+              fixedHoYoLabData.type = "Terms";
+              break;
+            case "Time-Limited Events":
+              fixedHoYoLabData.type = "Time-Limited Events";
+              break;
+            default:
+              throw new Error("Failed to assign correct type.");
+          }
           fixedHoYoLabData.content = createAeonsJSON(HoYoJSONData);
           break;
         default:
