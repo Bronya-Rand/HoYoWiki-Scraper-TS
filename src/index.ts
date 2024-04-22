@@ -362,6 +362,12 @@ export async function init(router: Router): Promise<void> {
     }
   });
 
+  router.post("/furina", jsonParser, async (req, res) => {
+    return res
+      .status(403)
+      .json({ error: "Genshin Parser has not been implemented *yet*." });
+  });
+
   console.log(
     chalk.green(`[${MODULE_NAME}] Initialized the HoYoWiki Scraper Plugin`)
   );

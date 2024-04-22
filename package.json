@@ -1,6 +1,6 @@
 {
   "name": "hoyolab-wiki-scraper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Scrapes the miHoYo/HoYoverse HoyoWiki pages and exports them JSON documents.",
   "main": "dist/plugin.js",
   "type": "commonjs",
