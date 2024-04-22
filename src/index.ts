@@ -10,6 +10,31 @@ const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 // Even though the HoYoWiki is on wiki.hoyolab.com, the actual JSON is on an API.
 const HOYOLAB_URL = "https://sg-wiki-api-static.hoyolab.com/hoyowiki";
+const STAR_RAIL_SWITCH_MAP = {
+  Characters: newCreateCharacterJSON,
+  Adventure: createGenericJSON,
+  Aeons: createAeonsJSON,
+  Blessings: createAeonsJSON,
+  Curios: createAeonsJSON,
+  Enemies: createAeonsJSON,
+  Factions: createAeonsJSON,
+  "Forgotten Hall": createAeonsJSON,
+  "Inventory Items": createAeonsJSON,
+  "Light Cones": createAeonsJSON,
+  "Map Collections": createAeonsJSON,
+  NPCs: createAeonsJSON,
+  Path: createAeonsJSON,
+  "Permanent Events": createAeonsJSON,
+  Phonograph: createAeonsJSON,
+  "Pure Fiction": createAeonsJSON,
+  Readables: createAeonsJSON,
+  "Regular Challenges": createAeonsJSON,
+  Relics: createAeonsJSON,
+  "Simulated Universe": createAeonsJSON,
+  System: createAeonsJSON,
+  Terms: createAeonsJSON,
+  "Time-Limited Events": createAeonsJSON,
+};
 
 const validWikis = ["genshin", "hsr"];
 
@@ -51,17 +76,9 @@ interface HoYoLabRealGenericJSON {
   desc: string;
   modules: [HoYoLabModule];
   menu_name: string;
-  filter_values: {};
 }
 
-interface HoYoLabRealCharacterJSON extends HoYoLabRealGenericJSON {
-  filter_values: {
-    character_paths: { values: [string] };
-    character_factions: { values: [string] };
-    character_rarity: { values: [string] };
-    character_combat_type: { values: [string] };
-  };
-}
+interface HoYoLabRealCharacterJSON extends HoYoLabRealGenericJSON {}
 
 interface HoYoLabGenericNestedJSON {
   list?: any[];
@@ -114,9 +131,7 @@ function isValidHoYoWiki(request: HoYoLabPageRequest): boolean {
   return validWikis.includes(request.miHoYoWiki);
 }
 
-function createGenericJSON(
-  jsonData: HoYoLabRealGenericJSON
-): HoYoLabTextGenericJSON {
+function createGenericJSON(jsonData: HoYoLabRealGenericJSON) {
   let temp = {} as HoYoLabTextGenericJSON;
   temp.description = `${extractTextFromHTML(jsonData.desc)}`;
   return temp;
@@ -299,163 +314,30 @@ function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
   let fixedHoYoLabData = {} as HoYoLabTextFile;
   var HoYoJSONData;
 
-  switch (jsonData.data.page.menu_name) {
-    case "Characters":
-      console.log(
-        chalk.blue(
-          `[${MODULE_NAME}] Character JSON detected. Creating PlainText of Character JSON: ${jsonData.data.page.name}`
-        )
-      );
-      HoYoJSONData = jsonData.data.page as HoYoLabRealCharacterJSON;
-      fixedHoYoLabData.name = HoYoJSONData.name;
-      fixedHoYoLabData.type = "Character";
-      fixedHoYoLabData.content = newCreateCharacterJSON(HoYoJSONData);
-      break;
-    case "Adventure":
-    case "Aeons":
-    case "Blessings":
-    case "Curios":
-    case "Enemies":
-    case "Factions":
-    case "Forgotten Hall":
-    case "Inventory Items":
-    case "Light Cones":
-    case "Map Collections":
-    case "NPCs":
-    case "Path":
-    case "Permanent Events":
-    case "Phonograph":
-    case "Pure Fiction":
-    case "Readables":
-    case "Regular Challenges":
-    case "Relics":
-    case "Simulated Universe":
-    case "System":
-    case "Terms":
-    case "Time-Limited Events":
-      HoYoJSONData = jsonData.data.page as HoYoLabRealGenericJSON;
-      fixedHoYoLabData.name = HoYoJSONData.name;
+  HoYoJSONData = jsonData.data.page as
+    | HoYoLabRealGenericJSON
+    | HoYoLabRealCharacterJSON;
+  fixedHoYoLabData.name = HoYoJSONData.name;
 
-      switch (jsonData.data.page.menu_name) {
-        case "Adventure":
-          console.log(
-            chalk.blue(
-              `[${MODULE_NAME}] Adventure JSON detected. Creating PlainText of Adventure JSON: ${jsonData.data.page.name}`
-            )
-          );
-          fixedHoYoLabData.type = "Adventure";
-          fixedHoYoLabData.content = createGenericJSON(HoYoJSONData);
-          break;
-        case "Aeons":
-        case "Blessings":
-        case "Curios":
-        case "Enemies":
-        case "Factions":
-        case "Forgotten Hall":
-        case "Inventory Items":
-        case "Light Cones":
-        case "Map Collections":
-        case "NPCs":
-        case "Path":
-        case "Permanent Events":
-        case "Phonograph":
-        case "Pure Fiction":
-        case "Readables":
-        case "Regular Challenges":
-        case "Relics":
-        case "Simulated Universe":
-        case "System":
-        case "Terms":
-        case "Time-Limited Events":
-          console.log(
-            chalk.blue(
-              `[${MODULE_NAME}] Standard JSON detected. Creating PlainText of Standard JSON: ${jsonData.data.page.name}`
-            )
-          );
-          switch (jsonData.data.page.menu_name) {
-            case "Aeons":
-              fixedHoYoLabData.type = "Aeons";
-              break;
-            case "Blessings":
-              fixedHoYoLabData.type = "Blessings";
-              break;
-            case "Curios":
-              fixedHoYoLabData.type = "Curios";
-              break;
-            case "Enemies":
-              fixedHoYoLabData.type = "Enemies";
-              break;
-            case "Factions":
-              fixedHoYoLabData.type = "Factions";
-              break;
-            case "Forgotten Hall":
-              fixedHoYoLabData.type = "Forgotten Hall";
-              break;
-            case "Inventory Items":
-              fixedHoYoLabData.type = "Inventory Items";
-              break;
-            case "Light Cones":
-              fixedHoYoLabData.type = "Light Cones";
-              break;
-            case "Map Collections":
-              fixedHoYoLabData.type = "Map Collections";
-              break;
-            case "NPCs":
-              fixedHoYoLabData.type = "NPCs";
-              break;
-            case "Path":
-              fixedHoYoLabData.type = "Path";
-              break;
-            case "Permanent Events":
-              fixedHoYoLabData.type = "Permanent Events";
-              break;
-            case "Phonograph":
-              fixedHoYoLabData.type = "Phonograph";
-              break;
-            case "Pure Fiction":
-              fixedHoYoLabData.type = "Pure Fiction";
-              break;
-            case "Readables":
-              fixedHoYoLabData.type = "Readables";
-              break;
-            case "Regular Challenges":
-              fixedHoYoLabData.type = "Regular Challenges";
-              break;
-            case "Relics":
-              fixedHoYoLabData.type = "Relics";
-              break;
-            case "Simulated Universe":
-              fixedHoYoLabData.type = "Simulated Universe";
-              break;
-            case "System":
-              fixedHoYoLabData.type = "System";
-              break;
-            case "Terms":
-              fixedHoYoLabData.type = "Terms";
-              break;
-            case "Time-Limited Events":
-              fixedHoYoLabData.type = "Time-Limited Events";
-              break;
-            default:
-              throw new Error("Failed to assign correct type.");
-          }
-          fixedHoYoLabData.content = createAeonsJSON(HoYoJSONData);
-          break;
-        default:
-          throw new Error("Failed to assign correct type.");
-      }
-      break;
-    default:
-      console.log(
-        chalk.blue(
-          `[${MODULE_NAME}] Non-Specific JSON detected. Attempting to creating PlainText of given JSON: ${jsonData.data.page.name}`
-        )
-      );
-      HoYoJSONData = jsonData.data.page as HoYoLabRealGenericJSON;
-      fixedHoYoLabData.name = HoYoJSONData.name;
-      fixedHoYoLabData.type = HoYoJSONData.menu_name;
-      fixedHoYoLabData.content = createGenericJSON(HoYoJSONData);
-      break;
+  const menuName = jsonData.data.page.menu_name;
+  if (menuName in STAR_RAIL_SWITCH_MAP) {
+    const func =
+      STAR_RAIL_SWITCH_MAP[menuName as keyof typeof STAR_RAIL_SWITCH_MAP];
+    console.log(
+      chalk.blue(
+        `[${MODULE_NAME}] ${menuName} JSON detected. Creating PlainText of ${menuName} JSON: ${jsonData.data.page.name}`
+      )
+    );
+    fixedHoYoLabData.type = menuName;
+    fixedHoYoLabData.content = func(HoYoJSONData);
+  } else {
+    console.log(
+      chalk.blue(
+        `[${MODULE_NAME}] Non-Specific JSON detected. Attempting to creating PlainText of given JSON: ${jsonData.data.page.name}`
+      )
+    );
+    fixedHoYoLabData.type = HoYoJSONData.menu_name;
+    fixedHoYoLabData.content = createGenericJSON(HoYoJSONData);
   }
   return fixedHoYoLabData;
 }
