@@ -63,6 +63,11 @@ interface HoYoLabRealCharacterJSON extends HoYoLabRealGenericJSON {
   };
 }
 
+interface HoYoLabGenericNestedJSON {
+  list?: any[];
+  data?: string;
+}
+
 // Handles that nested JSON data that HoYoLAB uses for some reason.
 interface HoYoLabAscendNestedJSON {
   list: [
@@ -160,7 +165,7 @@ interface HoYoLabTextGenericJSON {
   faction?: string;
   path?: string;
   story?: HoYoLabTextStory[];
-  extra_info?: {};
+  modules?: any[];
 }
 
 interface HoYoLabTextCharacterJSON extends HoYoLabTextGenericJSON {
@@ -176,10 +181,19 @@ interface HoYoLabTextCharacterJSON extends HoYoLabTextGenericJSON {
 }
 
 // Functions
-function extractTextFromHTML(html: string): string {
-  const modifiedHtml = html.replace(/<\/?p>/g, " ");
-  const cleanHTML = DOMPurify.sanitize(modifiedHtml) as string;
-  const dom = new JSDOM(cleanHTML);
+function extractTextFromHTML(html: string | string[]): string {
+  let dom;
+  if (Array.isArray(html)) {
+    // We only want to clean out the individual strings in the array.
+    const cleanValue = DOMPurify.sanitize(
+      html[0].replace(/<\/p><p>/g, " ").replace(/<\/?(p|strong)>/g, "")
+    ).trim();
+    dom = new JSDOM(cleanValue);
+  } else {
+    const modifiedHtml = html.replace(/<\/?(p|strong)>/g, " ");
+    const cleanHTML = DOMPurify.sanitize(modifiedHtml) as string;
+    dom = new JSDOM(cleanHTML);
+  }
   return dom.window.document.body.textContent || "";
 }
 
@@ -192,6 +206,171 @@ function createGenericJSON(
 ): HoYoLabTextGenericJSON {
   let temp = {} as HoYoLabTextGenericJSON;
   temp.description = `${extractTextFromHTML(jsonData.desc)}`;
+  return temp;
+}
+
+function createAeonsJSON(jsonData: HoYoLabRealGenericJSON) {
+  let temp = {} as HoYoLabTextGenericJSON;
+  temp.description = `${extractTextFromHTML(jsonData.desc)}`;
+  temp.modules = [] as any[];
+
+  for (const module of jsonData.modules) {
+    if (module.name === "") {
+      console.log(
+        chalk.yellow(
+          `[${MODULE_NAME}] Empty Module Name detected. Assuming no data is present`
+        )
+      );
+      continue;
+    }
+    console.log(chalk.magenta(`Parsing Module: ${module.name}`));
+
+    if (module.components[0].data === "") {
+      console.log(
+        chalk.yellow(
+          `[${MODULE_NAME}] Module: ${module.name} is empty. Skipping...`
+        )
+      );
+      continue;
+    }
+
+    const secondaryTemp = JSON.parse(
+      module.components[0].data
+    ) as HoYoLabGenericNestedJSON;
+
+    const modulo = { name: module.name, data: [] as any[] };
+
+    // Checking if we indeed have a list property
+    if (secondaryTemp.hasOwnProperty("list")) {
+      for (const data of secondaryTemp.list ?? [{ key: "", value: [""] }]) {
+        console.log(chalk.magenta(`Parsing Data`));
+        if (data.hasOwnProperty("value")) {
+          modulo.data.push({
+            key: data.key,
+            value: extractTextFromHTML(data.value),
+          });
+        } else {
+          console.log(
+            chalk.yellow(
+              `[${MODULE_NAME}] Module [${module.name}] seems to not be important for parsing. Skipping...`
+            )
+          );
+          continue;
+        }
+      }
+    } else {
+      if (secondaryTemp.hasOwnProperty("data")) {
+        modulo.data.push({
+          key: "",
+          value: extractTextFromHTML(secondaryTemp.data as string),
+        });
+      } else {
+        console.log(
+          chalk.yellow(
+            `[${MODULE_NAME}] Module [${module.name}] seems to not be important for parsing. Skipping...`
+          )
+        );
+        continue;
+      }
+    }
+    temp.modules?.push(modulo);
+  }
+  //console.log(temp.modules);
+  return temp;
+}
+
+function newCreateCharacterJSON(jsonData: HoYoLabRealCharacterJSON) {
+  let temp = {} as HoYoLabTextCharacterJSON;
+  temp.description = `${extractTextFromHTML(jsonData.desc)}`;
+  temp.modules = [] as any[];
+
+  for (const module of jsonData.modules) {
+    if (module.name === "") {
+      console.log(
+        chalk.yellow(
+          `[${MODULE_NAME}] Empty Module Name detected. Assuming no data is present`
+        )
+      );
+      continue;
+    }
+    console.log(chalk.magenta(`Parsing Module: ${module.name}`));
+
+    if (module.components[0].data === "") {
+      console.log(
+        chalk.yellow(
+          `[${MODULE_NAME}] Module: ${module.name} is empty. Skipping...`
+        )
+      );
+      continue;
+    }
+
+    const secondaryTemp = JSON.parse(
+      module.components[0].data
+    ) as HoYoLabGenericNestedJSON;
+
+    const modulo = { name: module.name, data: [] as any[] };
+
+    // Checking if we indeed have a list property
+    if (secondaryTemp.hasOwnProperty("list")) {
+      for (const data of secondaryTemp.list ?? [{ key: "", value: [""] }]) {
+        console.log(chalk.magenta(`Parsing Data`));
+        // For Typical Data
+        if (data.hasOwnProperty("value")) {
+          modulo.data.push({
+            key: data.key,
+            value: extractTextFromHTML(data.value),
+          });
+          // For Voice-Over/Story Data
+        } else if (
+          data.hasOwnProperty("key") &&
+          data.hasOwnProperty("values")
+        ) {
+          modulo.data.push({
+            key: data.key,
+            value: extractTextFromHTML(data.values),
+          });
+          // For Ascension Data
+        } else if (
+          data.hasOwnProperty("title") &&
+          data.hasOwnProperty("desc")
+        ) {
+          modulo.data.push({
+            key: data.title,
+            value: extractTextFromHTML(data.desc),
+          });
+          // For Eidolon Data
+        } else if (data.hasOwnProperty("name") && data.hasOwnProperty("desc")) {
+          modulo.data.push({
+            key: data.name,
+            value: extractTextFromHTML(data.desc),
+          });
+        } else {
+          console.log(
+            chalk.yellow(
+              `[${MODULE_NAME}] Module [${module.name}] seems to not have a 'value' field. Skipping...`
+            )
+          );
+          continue;
+        }
+      }
+    } else {
+      if (secondaryTemp.hasOwnProperty("data")) {
+        modulo.data.push({
+          key: "",
+          value: extractTextFromHTML(secondaryTemp.data as string),
+        });
+      } else {
+        console.log(
+          chalk.yellow(
+            `[${MODULE_NAME}] Module [${module.name}] seems to not have a 'data' field. Skipping...`
+          )
+        );
+        continue;
+      }
+    }
+    temp.modules?.push(modulo);
+  }
+  //console.log(temp.modules);
   return temp;
 }
 
@@ -261,7 +440,7 @@ function createCharacterJSON(
           let tempEidolon = {} as HoYoLabTextEidolons;
 
           tempEidolon.name = eidolon.name;
-          tempEidolon.desc = extractTextFromHTML(eidolon.desc);
+          tempEidolon.desc = extractTextFromHTML(eidolon.desc) as string;
 
           eidolons.push(tempEidolon);
         }
@@ -278,7 +457,7 @@ function createCharacterJSON(
           let tempStory = {} as HoYoLabTextStory;
 
           tempStory.title = story.title;
-          tempStory.desc = extractTextFromHTML(story.desc);
+          tempStory.desc = extractTextFromHTML(story.desc) as string;
 
           stories.push(tempStory);
         }
@@ -295,7 +474,7 @@ function createCharacterJSON(
           let tempVoice = {} as HoYoLabTextStory;
 
           tempVoice.title = voice.name;
-          tempVoice.desc = extractTextFromHTML(voice.desc);
+          tempVoice.desc = extractTextFromHTML(voice.desc) as string;
 
           voiceOvers.push(tempVoice);
         }
@@ -328,7 +507,7 @@ function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
       HoYoJSONData = jsonData.data.page as HoYoLabRealCharacterJSON;
       fixedHoYoLabData.name = HoYoJSONData.name;
       fixedHoYoLabData.type = "Character";
-      fixedHoYoLabData.content = createCharacterJSON(HoYoJSONData);
+      fixedHoYoLabData.content = newCreateCharacterJSON(HoYoJSONData);
       break;
     case "Adventure":
     case "Aeons":
@@ -343,6 +522,7 @@ function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
             )
           );
           fixedHoYoLabData.type = "Adventure";
+          fixedHoYoLabData.content = createGenericJSON(HoYoJSONData);
           break;
         case "Aeons":
           console.log(
@@ -351,11 +531,11 @@ function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
             )
           );
           fixedHoYoLabData.type = "Aeons";
+          fixedHoYoLabData.content = createAeonsJSON(HoYoJSONData);
           break;
         default:
           throw new Error("Failed to assign correct type.");
       }
-      fixedHoYoLabData.content = createGenericJSON(HoYoJSONData);
       break;
     default:
       console.log(
