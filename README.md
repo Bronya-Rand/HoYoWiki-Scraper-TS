@@ -2,6 +2,9 @@
 
 HoyoLAB Wiki Scraper is a server plugin for SillyTavern that scrapes the HoyoLAB wiki and exports it as JSON documents.
 
+> [!NOTE]
+> Currently, the only parser that works is the Honkai: Star Rail HoYoLAB parser. Genshin support coming soon.
+
 ## How to install
 
 1. Before you begin, make sure you set a config `enableServerPlugins` to `true` in the config.yaml file of SillyTavern.
