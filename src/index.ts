@@ -112,23 +112,96 @@ interface HoYoLabTextCharacterJSON extends HoYoLabTextGenericJSON {}
 
 // Functions
 function extractTextFromHTML(html: string | string[]): string {
-  let dom;
+  let cleanHTML: string;
+
   if (Array.isArray(html)) {
     // We only want to clean out the individual strings in the array.
-    const cleanValue = DOMPurify.sanitize(
+    cleanHTML = DOMPurify.sanitize(
       html[0].replace(/<\/p><p>/g, " ").replace(/<\/?(p|strong)>/g, "")
     ).trim();
-    dom = new JSDOM(cleanValue);
   } else {
-    const modifiedHtml = html.replace(/<\/?(p|strong)>/g, " ");
-    const cleanHTML = DOMPurify.sanitize(modifiedHtml) as string;
-    dom = new JSDOM(cleanHTML);
+    cleanHTML = DOMPurify.sanitize(
+      html.replace(/<\/p><p>/g, " ").replace(/<\/?(p|strong)>/g, " ")
+    ) as string;
   }
+
+  const dom = new JSDOM(cleanHTML);
   return dom.window.document.body.textContent || "";
 }
 
 function isValidHoYoWiki(request: HoYoLabPageRequest): boolean {
   return validWikis.includes(request.miHoYoWiki);
+}
+
+function parseModule(module: HoYoLabModule): any[] | null {
+  if (module.name === "" || module.components[0].data === "") {
+    console.log(
+      chalk.yellow(
+        `[${MODULE_NAME}] Empty Module detected. Assuming no data is present`
+      )
+    );
+    return null;
+  }
+
+  console.log(chalk.magenta(`Parsing Module: ${module.name}`));
+
+  const parsedData = JSON.parse(
+    module.components[0].data
+  ) as HoYoLabGenericNestedJSON;
+  const moduleData = { name: module.name, data: [] as any[] };
+
+  if (!parsedData.hasOwnProperty("list")) {
+    if (!parsedData.hasOwnProperty("data")) {
+      console.log(
+        chalk.yellow(
+          `[${MODULE_NAME}] Module [${module.name}] seems to not have a 'data' field. Skipping...`
+        )
+      );
+      return null;
+    }
+
+    moduleData.data.push({
+      key: "",
+      value: extractTextFromHTML(parsedData.data as string),
+    });
+
+    return [moduleData];
+  }
+
+  for (const data of parsedData.list ?? [{ key: "", value: [""] }]) {
+    if (data.hasOwnProperty("value")) {
+      moduleData.data.push({
+        key: data.key,
+        value: extractTextFromHTML(data.value),
+      });
+    } else if (data.hasOwnProperty("title") && data.hasOwnProperty("desc")) {
+      moduleData.data.push({
+        key: data.title,
+        value: extractTextFromHTML(data.desc),
+      });
+      // For Voice-Over/Story Data
+    } else if (data.hasOwnProperty("key") && data.hasOwnProperty("values")) {
+      moduleData.data.push({
+        key: data.key,
+        value: extractTextFromHTML(data.values),
+      });
+      // For Eidolon Data
+    } else if (data.hasOwnProperty("name") && data.hasOwnProperty("desc")) {
+      moduleData.data.push({
+        key: data.name,
+        value: extractTextFromHTML(data.desc),
+      });
+    } else {
+      console.log(
+        chalk.yellow(
+          `[${MODULE_NAME}] Module [${module.name}] seems to not be important for parsing. Skipping...`
+        )
+      );
+      continue;
+    }
+  }
+
+  return [moduleData];
 }
 
 function createGenericJSON(jsonData: HoYoLabRealGenericJSON) {
@@ -138,176 +211,33 @@ function createGenericJSON(jsonData: HoYoLabRealGenericJSON) {
 }
 
 function createAeonsJSON(jsonData: HoYoLabRealGenericJSON) {
-  let temp = {} as HoYoLabTextGenericJSON;
-  temp.description = `${extractTextFromHTML(jsonData.desc)}`;
-  temp.modules = [] as any[];
+  let textGenericJSON = {} as HoYoLabTextGenericJSON;
+  textGenericJSON.description = `${extractTextFromHTML(jsonData.desc)}`;
+  textGenericJSON.modules = [] as any[];
 
   for (const module of jsonData.modules) {
-    if (module.name === "") {
-      console.log(
-        chalk.yellow(
-          `[${MODULE_NAME}] Empty Module Name detected. Assuming no data is present`
-        )
-      );
-      continue;
+    const parsedModule = parseModule(module);
+    if (parsedModule) {
+      textGenericJSON.modules.push(...parsedModule);
     }
-    console.log(chalk.magenta(`Parsing Module: ${module.name}`));
-
-    if (module.components[0].data === "") {
-      console.log(
-        chalk.yellow(
-          `[${MODULE_NAME}] Module: ${module.name} is empty. Skipping...`
-        )
-      );
-      continue;
-    }
-
-    const secondaryTemp = JSON.parse(
-      module.components[0].data
-    ) as HoYoLabGenericNestedJSON;
-
-    const modulo = { name: module.name, data: [] as any[] };
-
-    // Checking if we indeed have a list property
-    if (secondaryTemp.hasOwnProperty("list")) {
-      for (const data of secondaryTemp.list ?? [{ key: "", value: [""] }]) {
-        console.log(chalk.magenta(`Parsing Data`));
-        if (data.hasOwnProperty("value")) {
-          modulo.data.push({
-            key: data.key,
-            value: extractTextFromHTML(data.value),
-          });
-        } else if (
-          data.hasOwnProperty("title") &&
-          data.hasOwnProperty("desc")
-        ) {
-          modulo.data.push({
-            key: data.title,
-            value: extractTextFromHTML(data.desc),
-          });
-        } else {
-          console.log(
-            chalk.yellow(
-              `[${MODULE_NAME}] Module [${module.name}] seems to not be important for parsing. Skipping...`
-            )
-          );
-          continue;
-        }
-      }
-    } else {
-      if (secondaryTemp.hasOwnProperty("data")) {
-        modulo.data.push({
-          key: "",
-          value: extractTextFromHTML(secondaryTemp.data as string),
-        });
-      } else {
-        console.log(
-          chalk.yellow(
-            `[${MODULE_NAME}] Module [${module.name}] seems to not be important for parsing. Skipping...`
-          )
-        );
-        continue;
-      }
-    }
-    temp.modules?.push(modulo);
   }
-  //console.log(temp.modules);
-  return temp;
+
+  return textGenericJSON;
 }
 
 function newCreateCharacterJSON(jsonData: HoYoLabRealCharacterJSON) {
-  let temp = {} as HoYoLabTextCharacterJSON;
-  temp.description = `${extractTextFromHTML(jsonData.desc)}`;
-  temp.modules = [] as any[];
+  let textCharacterJSON = {} as HoYoLabTextCharacterJSON;
+  textCharacterJSON.description = `${extractTextFromHTML(jsonData.desc)}`;
+  textCharacterJSON.modules = [] as any[];
 
   for (const module of jsonData.modules) {
-    if (module.name === "") {
-      console.log(
-        chalk.yellow(
-          `[${MODULE_NAME}] Empty Module Name detected. Assuming no data is present`
-        )
-      );
-      continue;
+    const parsedModule = parseModule(module);
+    if (parsedModule) {
+      textCharacterJSON.modules.push(...parsedModule);
     }
-    console.log(chalk.magenta(`Parsing Module: ${module.name}`));
-
-    if (module.components[0].data === "") {
-      console.log(
-        chalk.yellow(
-          `[${MODULE_NAME}] Module: ${module.name} is empty. Skipping...`
-        )
-      );
-      continue;
-    }
-
-    const secondaryTemp = JSON.parse(
-      module.components[0].data
-    ) as HoYoLabGenericNestedJSON;
-
-    const modulo = { name: module.name, data: [] as any[] };
-
-    // Checking if we indeed have a list property
-    if (secondaryTemp.hasOwnProperty("list")) {
-      for (const data of secondaryTemp.list ?? [{ key: "", value: [""] }]) {
-        console.log(chalk.magenta(`Parsing Data`));
-        // For Typical Data
-        if (data.hasOwnProperty("value")) {
-          modulo.data.push({
-            key: data.key,
-            value: extractTextFromHTML(data.value),
-          });
-          // For Voice-Over/Story Data
-        } else if (
-          data.hasOwnProperty("key") &&
-          data.hasOwnProperty("values")
-        ) {
-          modulo.data.push({
-            key: data.key,
-            value: extractTextFromHTML(data.values),
-          });
-          // For Ascension Data
-        } else if (
-          data.hasOwnProperty("title") &&
-          data.hasOwnProperty("desc")
-        ) {
-          modulo.data.push({
-            key: data.title,
-            value: extractTextFromHTML(data.desc),
-          });
-          // For Eidolon Data
-        } else if (data.hasOwnProperty("name") && data.hasOwnProperty("desc")) {
-          modulo.data.push({
-            key: data.name,
-            value: extractTextFromHTML(data.desc),
-          });
-        } else {
-          console.log(
-            chalk.yellow(
-              `[${MODULE_NAME}] Module [${module.name}] seems to not have a 'value' field. Skipping...`
-            )
-          );
-          continue;
-        }
-      }
-    } else {
-      if (secondaryTemp.hasOwnProperty("data")) {
-        modulo.data.push({
-          key: "",
-          value: extractTextFromHTML(secondaryTemp.data as string),
-        });
-      } else {
-        console.log(
-          chalk.yellow(
-            `[${MODULE_NAME}] Module [${module.name}] seems to not have a 'data' field. Skipping...`
-          )
-        );
-        continue;
-      }
-    }
-    temp.modules?.push(modulo);
   }
-  //console.log(temp.modules);
-  return temp;
+
+  return textCharacterJSON;
 }
 
 function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
