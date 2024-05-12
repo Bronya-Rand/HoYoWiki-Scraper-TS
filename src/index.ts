@@ -35,6 +35,26 @@ const STAR_RAIL_SWITCH_MAP = {
   Terms: createAeonsJSON,
   "Time-Limited Events": createAeonsJSON,
 };
+const GENSHIN_SWITCH_MAP = {
+  "Character Archive": newCreateCharacterJSON,
+  "Action Cards": createAeonsJSON,
+  Affiliations: createAeonsJSON,
+  Artifacts: createAeonsJSON,
+  Books: createAeonsJSON,
+  "Character Cards": createAeonsJSON,
+  Definitions: createAeonsJSON,
+  "Enemies and Monsters": createAeonsJSON,
+  "Enemy and Monster Cards": createAeonsJSON,
+  Nations: createAeonsJSON,
+  "NPC Archive": createAeonsJSON,
+  "Teyvat's Resources": createAeonsJSON,
+  Tutorial: createGenericJSON,
+  Weapons: createAeonsJSON,
+  Wildlife: createAeonsJSON,
+};
+
+type HonkaiStarRail = typeof STAR_RAIL_SWITCH_MAP;
+type GenshinImpact = typeof GENSHIN_SWITCH_MAP;
 
 const validWikis = ["genshin", "hsr"];
 
@@ -240,7 +260,10 @@ function newCreateCharacterJSON(jsonData: HoYoLabRealCharacterJSON) {
   return textCharacterJSON;
 }
 
-function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
+function HoYoAPItoPlainText(
+  jsonData: HoYoLabAPIJSON,
+  switchMap: GenshinImpact | HonkaiStarRail
+): HoYoLabTextFile {
   let fixedHoYoLabData = {} as HoYoLabTextFile;
   var HoYoJSONData;
 
@@ -250,9 +273,23 @@ function HoYoAPItoPlainText(jsonData: HoYoLabAPIJSON): HoYoLabTextFile {
   fixedHoYoLabData.name = HoYoJSONData.name;
 
   const menuName = jsonData.data.page.menu_name;
-  if (menuName in STAR_RAIL_SWITCH_MAP) {
-    const func =
-      STAR_RAIL_SWITCH_MAP[menuName as keyof typeof STAR_RAIL_SWITCH_MAP];
+
+  // TypeScript needs to know whether the switchMap given is for Genshin or Star Rail.
+  function isGenshinImpact(
+    map: GenshinImpact | HonkaiStarRail
+  ): map is GenshinImpact {
+    return "Character Archive" in map;
+  }
+
+  if (menuName in switchMap) {
+    let func;
+
+    if (isGenshinImpact(switchMap)) {
+      func = switchMap[menuName as keyof GenshinImpact];
+    } else {
+      func = switchMap[menuName as keyof HonkaiStarRail];
+    }
+
     console.log(
       chalk.blue(
         `[${MODULE_NAME}] ${menuName} JSON detected. Creating PlainText of ${menuName} JSON: ${jsonData.data.page.name}`
@@ -283,6 +320,9 @@ async function scrapeHoYoLabWiki(
     "X-Rpc-Wiki_app": wiki,
   };
 
+  const switchMap =
+    wiki === "genshin" ? GENSHIN_SWITCH_MAP : STAR_RAIL_SWITCH_MAP;
+
   console.log(
     chalk.blue(`[${MODULE_NAME}] Fetching the HoYoLAB Wiki Page from the API`)
   );
@@ -304,7 +344,7 @@ async function scrapeHoYoLabWiki(
       `[${MODULE_NAME}] Converting the HoYoLAB Wiki for JSON Entry: '${responseJSON.data.page.name}' to Plain Text`
     )
   );
-  const plainTextData = HoYoAPItoPlainText(responseJSON);
+  const plainTextData = HoYoAPItoPlainText(responseJSON, switchMap);
 
   return [plainTextData];
 }
@@ -360,12 +400,6 @@ export async function init(router: Router): Promise<void> {
       );
       return res.status(500).json({ error: "Internal Server Error" });
     }
-  });
-
-  router.post("/furina", jsonParser, async (req, res) => {
-    return res
-      .status(403)
-      .json({ error: "Genshin Parser has not been implemented *yet*." });
   });
 
   console.log(
